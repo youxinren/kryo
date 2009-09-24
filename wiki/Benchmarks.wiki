@@ -16,7 +16,7 @@ The bars labeled "kryo optimized" represent the classes registered with optimiza
 
 The bars labeled "kryo compressed" represent the same as "kryo optimized" but with [http://en.wikipedia.org/wiki/DEFLATE_%28algorithm%29 deflate compression]. The compression has a small performance hit to decode and a large performance hit to encode, but may make sense when space or bandwidth is a concern. The round trip time with compression is shown below.
 
-Kryo beats protobuf soundly in serialized size, even without optimizations. The two projects are basically tied in serialized speed.
+Kryo beats protobuf soundly in serialized size, even without optimizations. The two projects are basically tied in serialization speed.
 
 = Protobuf differences =
 
