@@ -31,7 +31,7 @@ The protobuf compiler produces builders and immutable message classes. From the 
 
 With Kryo, instances of any class can be serialized, even classes from third parties where you do not control the source.
 
-Versioning
+Protobuf supports limited changing of the `.proto` data structure definition without breaking compatibility with previously serialized objects or previously generated message classes. With Kryo, the class definition during deserialization must be identical to when the class was serialized. In the future Kryo may support optional forward and/or backward compatibility.
 
 = Java serialization =
 
