@@ -1,0 +1,8 @@
+
+http://kryo.googlecode.com/svn/wiki/benchmarks/images/size-proto.png
+
+http://kryo.googlecode.com/svn/wiki/benchmarks/images/rtt-proto.png
+
+http://kryo.googlecode.com/svn/wiki/benchmarks/images/size-java.png
+
+http://kryo.googlecode.com/svn/wiki/benchmarks/images/rtt-java.png
