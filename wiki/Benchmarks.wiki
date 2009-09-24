@@ -1,7 +1,41 @@
+#labels Featured
+The results below were obtained using the [http://code.google.com/p/thrift-protobuf-compare/ thrift-protobuf-compare project]. There you will find the source for the benchmarks used to generate the charts displayed here. The project also has a [http://code.google.com/p/thrift-protobuf-compare/wiki/Benchmarking benchmarking page] that compares 20+ Java serialization libraries, including Kryo.
 
-http://kryo.googlecode.com/svn/wiki/benchmarks/images/size-proto.png
+= Protobuf =
 
-http://kryo.googlecode.com/svn/wiki/benchmarks/images/rtt-proto.png
+Google's [http://code.google.com/p/protobuf/ protobuf project] beats out most other Java serialization libraries, so is a good baseline to compare against:
+
+<table><tr>
+<td>http://kryo.googlecode.com/svn/wiki/benchmarks/images/size-proto.png</td>
+<td>http://kryo.googlecode.com/svn/wiki/benchmarks/images/rtt-proto.png</td>
+</tr></table>
+
+The bars labeled "kryo" represent out of the box serialization. The classes are registered with no optimizations.
+
+The bars labeled "kryo optimized" represent the classes registered with optimizations such as letting Kryo know which fields will not be null and what type of elements will be in a list.
+
+The bars labeled "kryo compressed" represent the same as "kryo optimized" but with [http://en.wikipedia.org/wiki/DEFLATE_%28algorithm%29 deflate] compression. The compression has a small performance hit to decode and a large performance hit to encode, but may make sense when space or bandwidth is a concern. The round trip time with compression is shown below.
+
+Kryo beats protobuf soundly in serialized size, even without optimizations. The two projects are basically tied in serialized speed.
+
+= Protobuf differences =
+
+There are other differences between the projects that must be considered along with performance.
+
+Protobuf requires a `.proto` file to be written that describes the data structures. With Kryo, the classes to be serialized only need to be registered.
+
+The `.proto` file is compiled into Java, C++, or Python code. Kryo is designed only to be compatible with Java and provides no interoperability with C++ or Python.
+
+The protobuf compiler produces builders and immutable message classes. From the protobuf documentation:
+ _Protocol buffer classes are basically dumb data holders (like structs in C++); they don't make good first class citizens in an object model. If you want to add richer behaviour to a generated class, the best way to do this is to wrap the generated protocol buffer class in an application-specific class.
+
+With Kryo, instances of any class can be serialized, even classes from third parties where you do not control the source.
+
+Versioning
+
+= Java serialization =
+
+Java's built-in serialization is slow, inefficient, and has many well-known problems (see Effective Java, by Josh Bloch pp. 213).
 
 http://kryo.googlecode.com/svn/wiki/benchmarks/images/size-java.png
 
