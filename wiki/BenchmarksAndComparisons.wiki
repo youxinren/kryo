@@ -12,17 +12,17 @@ Google's [http://code.google.com/p/protobuf/ protobuf project] beats out most ot
 
 The bars labeled "kryo" represent out of the box serialization. The classes are registered with no optimizations.
 
-The bars labeled "kryo optimized" represent the classes registered with optimizations such as letting Kryo know which fields will not be null and what type of elements will be in a list.
+The bars labeled "kryo optimized" represent the classes registered with optimizations such as letting Kryo know which fields will never be null and what type of elements will be in a list.
 
 The bars labeled "kryo compressed" represent the same as "kryo optimized" but with [http://en.wikipedia.org/wiki/DEFLATE_%28algorithm%29 deflate compression]. The compression has a small performance hit to decode and a large performance hit to encode, but may make sense when space or bandwidth is a concern. The round trip time with compression is shown below.
 
-Kryo beats protobuf soundly in serialized size, even without optimizations. The two projects are basically tied in serialization speed.
+Although Kryo is doing everything at runtime and protobuf uses precompiled classes, Kryo puts up a fight. Protobuf is beat soundly in serialized size, even without optimizations. The two projects are basically tied in serialization speed.
 
 == Protobuf differences ==
 
 There are other differences between the projects that should be considered.
 
-Protobuf requires a `.proto` file to be written that describes the data structures. With Kryo, the classes to be serialized only need to be registered.
+Protobuf requires a `.proto` file to be written that describes the data structures. With Kryo, the classes to be serialized only need to be registered at runtime.
 
 The `.proto` file is compiled into Java, C++, or Python code. Third party add-ons exist to use protobuf with many other languages. Kryo is designed only to be compatible with Java and provides no interoperability with other languages.
 
