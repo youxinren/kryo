@@ -16,7 +16,7 @@ The bars labeled "kryo optimized" represent the classes registered with optimiza
 
 The bars labeled "kryo compressed" represent the same as "kryo optimized" but with [http://en.wikipedia.org/wiki/DEFLATE_%28algorithm%29 deflate compression]. The compression has a small performance hit to decode and a large performance hit to encode, but may make sense when space or bandwidth is a concern. The round trip time with compression is shown below.
 
-Although Kryo is doing everything at runtime and protobuf uses precompiled classes, Kryo puts up a fight. Protobuf is beat soundly in serialized size, even without optimizations. The two projects are basically tied in serialization speed.
+Although Kryo is doing everything at runtime and protobuf uses precompiled classes, Kryo puts up a fight. The two projects are basically tied in serialization size and protobuf just squeaks ahead in serialization speed.
 
 == Protobuf differences ==
 
