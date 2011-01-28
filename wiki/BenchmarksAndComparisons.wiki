@@ -1,6 +1,8 @@
 #labels Featured
 The results below were obtained using the [http://code.google.com/p/thrift-protobuf-compare/ thrift-protobuf-compare project]. There you will find the source for the benchmarks used to generate the charts displayed here. The project also has a [http://code.google.com/p/thrift-protobuf-compare/wiki/Benchmarking benchmarking page] that compares 20+ Java serialization libraries, including Kryo.
 
+Besides the benchmark project linked above, a project called [http://code.google.com/p/memcached-session-manager/ memcached-session-manager] has done some [http://code.google.com/p/memcached-session-manager/wiki/SerializationStrategyBenchmark additional benchmarking].
+
 == Protobuf ==
 
 Google's [http://code.google.com/p/protobuf/ protobuf project] beats out most other Java serialization libraries, so is a good baseline to compare against:
