@@ -8,7 +8,7 @@ Please use the [http://groups.google.com/group/kryo-users Kryo discussion group]
 
 Kryo is a fast and efficient object graph serialization framework for Java. The goals of the project are speed, efficiency, and an easy to use API. The project is useful any time objects need to be persisted, whether to a file, database, or over the network.
 
-Kryo is competitive with other serialization projects. See BenchmarksAndComparisons for charts and more.
+Kryo is competitive with other serialization projects. See V1Benchmarks for charts and more.
 
 If you are planning to use Kryo for network communication, the [http://code.google.com/p/kryonet/ KryoNet] project may prove useful.
 
