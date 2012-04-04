@@ -1,6 +1,6 @@
 #summary Documentation for version 1.x
 
-Note this documentation is for an old version of Kryo. See the [http://code.google.com/p/kryo home page] for the latest documentaiton.
+Note this documentation is for an old version of Kryo which has been retired to "branches" in SVN. See the [http://code.google.com/p/kryo home page] for the latest documentaiton.
 
 Please use the [http://groups.google.com/group/kryo-users Kryo discussion group] for support.
 
