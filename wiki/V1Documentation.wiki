@@ -244,7 +244,7 @@ someObject = buffer.readObject(bytes);
 
 Internally !ObjectBuffer uses its own buffer, so it cannot be shared by multiple threads.
 
-!ObjectBuffer provides [http://kryo.googlecode.com/svn/api/com/esotericsoftware/kryo/ObjectBuffer.html#ObjectBuffer(com.esotericsoftware.kryo.Kryo,%20int,%20int) constructors] to control the initial and maximum size of the internal buffer. The buffer must be large enough to contain all the bytes for the object graph being serialized or deserialized. The size of the buffer is doubled until it exceeds the maximum size, in which case a !SerializationException is thrown.
+!ObjectBuffer provides [http://kryo.googlecode.com/svn/api/v1/com/esotericsoftware/kryo/ObjectBuffer.html#ObjectBuffer(com.esotericsoftware.kryo.Kryo,%20int,%20int) constructors] to control the initial and maximum size of the internal buffer. The buffer must be large enough to contain all the bytes for the object graph being serialized or deserialized. The size of the buffer is doubled until it exceeds the maximum size, in which case a !SerializationException is thrown.
 
 
 == Compression ==
