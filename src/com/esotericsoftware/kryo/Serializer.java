@@ -1,40 +1,86 @@
 
 package com.esotericsoftware.kryo;
 
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import static com.esotericsoftware.minlog.Log.*;
 
-/** Reads and writes objects to and from bytes.
- * @author Nathan Sweet <misc@n4te.com> */
-public abstract class Serializer<T> {
-	private boolean acceptsNull;
+import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
 
-	/** Writes the bytes for the object to the output.
-	 * @param object May be null if {@link #getAcceptsNull()} is true. */
-	abstract public void write (Kryo kryo, Output output, T object);
+import com.esotericsoftware.kryo.serialize.ArraySerializer;
 
-	/** Creates a new object of the specified type. The object may be uninitialized. This method may read from input to populate the
-	 * object, but it must not call {@link Kryo} methods to deserialize nested objects. That must be done in
-	 * {@link #read(Kryo, Input, Object)}. The default implementation uses {@link Registration#getInstantiator()} to create a new
-	 * object.
-	 * @return May be null if {@link #getAcceptsNull()} is true. */
-	public T create (Kryo kryo, Input input, Class<T> type) {
-		return (T)kryo.getRegistration(type).getInstantiator().newInstance();
+/**
+ * Serializes objects to and from a {@link ByteBuffer}.
+ * @see Kryo#register(Class, Serializer)
+ * @author Nathan Sweet <misc@n4te.com>
+ */
+abstract public class Serializer {
+	static private final byte NULL_OBJECT = 0;
+	static private final byte NOT_NULL_OBJECT = 1;
+
+	private boolean canBeNull = true;
+
+	/**
+	 * When true, a byte will not be used to denote if the object is null. This is useful for primitives and objects that are known
+	 * to never be null. Defaults to true.
+	 */
+	public void setCanBeNull (boolean canBeNull) {
+		this.canBeNull = canBeNull;
 	}
 
-	/** Populates the object. This method may call {@link Kryo} methods to deserialize nested objects, unlike
-	 * {@link #create(Kryo, Input, Class)}. The default implementation is empty.
-	 * <p>
-	 * Any serializer that uses {@link Kryo} to serialize another object may need to be reentrant. */
-	public void read (Kryo kryo, Input input, T object) {
+	/**
+	 * Writes the object to the buffer.
+	 * @param object Can be null (writes a special class ID for a null object instead).
+	 */
+	public final void writeObject (ByteBuffer buffer, Object object) {
+		if (canBeNull) {
+			if (object == null) {
+				if (TRACE) trace("kryo", "Wrote object: null");
+				buffer.put(NULL_OBJECT);
+				return;
+			}
+			buffer.put(NOT_NULL_OBJECT);
+		}
+		writeObjectData(buffer, object);
 	}
 
-	public boolean getAcceptsNull () {
-		return acceptsNull;
+	/**
+	 * Writes the object to the buffer.
+	 * @param object Cannot be null.
+	 */
+	abstract public void writeObjectData (ByteBuffer buffer, Object object);
+
+	/**
+	 * Reads an object from the buffer.
+	 * @return The deserialized object, or null if the object read from the buffer was a null.
+	 */
+	public final <T> T readObject (ByteBuffer buffer, Class<T> type) {
+		if (canBeNull && buffer.get() == NULL_OBJECT) {
+			if (TRACE) trace("kryo", "Read object: null");
+			return null;
+		}
+		return readObjectData(buffer, type);
 	}
 
-	/** If true, this serializer will handle writing and reading null values. If false, the Kryo framework handles null values. */
-	public void setAcceptsNull (boolean acceptsNull) {
-		this.acceptsNull = acceptsNull;
+	/**
+	 * Reads an object from the buffer.
+	 * @return The deserialized object, never null.
+	 */
+	abstract public <T> T readObjectData (ByteBuffer buffer, Class<T> type);
+
+	/**
+	 * Returns an instance of the specified class. The default implementation calls {@link Kryo#newInstance(Class)}.
+	 * @throws SerializationException if the class could not be constructed.
+	 */
+	public <T> T newInstance (Kryo kryo, Class<T> type) {
+		return kryo.newInstance(type);
+	}
+
+	/**
+	 * Returns true if the specified type is final, or if it is an array of a final type. Serializers call this rather than
+	 * {@link Kryo#isFinal(Class)}, allowing a subclass to customize the behavior (eg, an application may decide that all
+	 * java.util.ArrayList instances should be considered final).
+	 */
+	public boolean isFinal (Class type) {
+		return Kryo.isFinal(type);
 	}
 }

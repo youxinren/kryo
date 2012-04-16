@@ -1,4 +1,7 @@
-version: 2.04
+version: 1.04
+dependencies:
+- ../reflectasm
+- ../minlog
 ---
 Build.build(project);
 Build.oneJAR(project);
