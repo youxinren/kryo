@@ -15,11 +15,11 @@ import com.esotericsoftware.kryo.io.Output;
  * array type is not final then an extra byte is written for each element.
  * @see Kryo#register(Class, Serializer)
  * @author Nathan Sweet <misc@n4te.com> */
-public class ArraySerializer extends Serializer {
+public class ArraySerializer implements Serializer {
 	private Integer fixedDimensionCount;
 	private boolean elementsAreSameType;
 	private boolean elementsCanBeNull = true;
-	private int[] dimensions, tempDimensions;
+	private int[] dimensions;
 
 	/** @param dimensions The number of dimensions. Saves 1 byte. Set to null to determine the number of dimensions (default). */
 	public void setDimensionCount (Integer dimensions) {
@@ -99,26 +99,27 @@ public class ArraySerializer extends Serializer {
 		}
 	}
 
-	public Object create (Kryo kryo, Input input, Class type) {
+	public Object read (Kryo kryo, Input input, Class type) {
 		// Get dimensions.
-		tempDimensions = this.dimensions;
-		if (tempDimensions == null) {
-			int dimensionCount = fixedDimensionCount != null ? fixedDimensionCount : input.readByteUnsigned();
-			tempDimensions = new int[dimensionCount];
+		int[] dimensions = this.dimensions;
+		int dimensionCount;
+		if (dimensions == null) {
+			dimensionCount = fixedDimensionCount != null ? fixedDimensionCount : input.readByteUnsigned();
+			dimensions = new int[dimensionCount];
 			for (int i = 0; i < dimensionCount; i++)
-				tempDimensions[i] = input.readInt(true);
-		}
-		return Array.newInstance(getElementClass(type), tempDimensions);
-	}
-
-	public void read (Kryo kryo, Input input, Object array) {
+				dimensions[i] = input.readInt(true);
+		} else
+			dimensionCount = dimensions.length;
 		// Get element serializer if all elements are the same type.
 		Serializer elementSerializer = null;
-		Class elementClass = getElementClass(array.getClass());
+		Class elementClass = getElementClass(type);
 		boolean elementsCanBeNull = this.elementsCanBeNull && !elementClass.isPrimitive();
 		if (elementsAreSameType || Modifier.isFinal(elementClass.getModifiers()))
 			elementSerializer = kryo.getRegistration(elementClass).getSerializer();
-		readArray(kryo, input, array, tempDimensions[0], elementSerializer, elementClass, 0, tempDimensions, elementsCanBeNull);
+		// Create array and read in the data.
+		Object array = Array.newInstance(elementClass, dimensions);
+		readArray(kryo, input, array, dimensions[0], elementSerializer, elementClass, 0, dimensions, elementsCanBeNull);
+		return array;
 	}
 
 	private void readArray (Kryo kryo, Input input, Object array, int length, Serializer elementSerializer, Class elementClass,

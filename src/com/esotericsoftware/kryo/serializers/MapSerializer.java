@@ -14,7 +14,7 @@ import com.esotericsoftware.kryo.io.Output;
  * <p>
  * With the default constructor, a map requires a 1-3 byte header and an extra 4 bytes is written for each key/value pair.
  * @author Nathan Sweet <misc@n4te.com> */
-public class MapSerializer extends Serializer<Map> {
+public class MapSerializer implements Serializer<Map> {
 	private final Kryo kryo;
 	private Class keyClass, valueClass;
 	private Serializer keySerializer, valueSerializer;
@@ -89,9 +89,10 @@ public class MapSerializer extends Serializer<Map> {
 		}
 	}
 
-	public void read (Kryo kryo, Input input, Map map) {
+	public Map read (Kryo kryo, Input input, Class type) {
+		Map map = (Map)newInstance(kryo, input, type);
 		int length = input.readInt(true);
-		if (length == 0) return;
+		if (length == 0) return map;
 		for (int i = 0; i < length; i++) {
 			Object key;
 			if (keySerializer != null) {
@@ -111,5 +112,12 @@ public class MapSerializer extends Serializer<Map> {
 				value = kryo.readClassAndObject(input);
 			map.put(key, value);
 		}
+		return map;
+	}
+
+	/** Instance creation can be customized by overridding this method. The default implementaion calls
+	 * {@link Kryo#newInstance(Class)}. */
+	public <T> T newInstance (Kryo kryo, Input input, Class<T> type) {
+		return kryo.newInstance(type);
 	}
 }

@@ -3,7 +3,6 @@ package com.esotericsoftware.kryo;
 
 import com.esotericsoftware.kryo.serializers.ArraySerializer;
 
-/** @author Nathan Sweet <misc@n4te.com> */
 public class ArraySerializerTest extends KryoTestCase {
 	public void testArrays () {
 		kryo.register(int[].class);
@@ -17,9 +16,9 @@ public class ArraySerializerTest extends KryoTestCase {
 		roundTrip(11, new int[][] { {1, 2}, {100, 4}});
 		roundTrip(13, new int[][] { {1}, {2}, {100}, {4}});
 		roundTrip(16, new int[][][] { { {1}, {2}}, { {100}, {4}}});
-		roundTrip(15, new String[] {"11", "2222", "3", "4"});
-		roundTrip(14, new String[] {"11", "2222", null, "4"});
-		roundTrip(35,
+		roundTrip(19, new String[] {"11", "2222", "3", "4"});
+		roundTrip(17, new String[] {"11", "2222", null, "4"});
+		roundTrip(38,
 			new Object[] {new String[] {"11", "2222", null, "4"}, new int[] {1, 2, 3, 4}, new int[][] { {1, 2}, {100, 4}}});
 
 		ArraySerializer serializer = new ArraySerializer();
@@ -30,13 +29,13 @@ public class ArraySerializerTest extends KryoTestCase {
 		kryo.register(Object[].class, serializer);
 		serializer.setDimensionCount(1);
 		serializer.setElementsAreSameType(true);
-		roundTrip(13, new String[] {"11", "2222", null, "4"});
+		roundTrip(16, new String[] {"11", "2222", null, "4"});
 		serializer.setElementsAreSameType(false);
-		roundTrip(13, new String[] {"11", "2222", null, "4"});
+		roundTrip(16, new String[] {"11", "2222", null, "4"});
 		roundTrip(5, new String[] {null, null, null});
 		roundTrip(2, new String[] {});
 		serializer.setElementsAreSameType(true);
-		roundTrip(14, new String[] {"11", "2222", "3", "4"});
+		roundTrip(18, new String[] {"11", "2222", "3", "4"});
 		serializer.setElementsCanBeNull(false);
 		roundTrip(14, new String[] {"11", "2222", "3", "4"});
 		serializer.setLength(4);

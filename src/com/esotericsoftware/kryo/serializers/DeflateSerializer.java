@@ -13,10 +13,10 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
-public class DeflateSerializer extends Serializer {
+public class DeflateSerializer implements Serializer {
 	private final Serializer serializer;
 	private boolean noHeaders = true;
-	private int compressionLevel = 4;
+	private int compressionLevel = 6;
 
 	public DeflateSerializer (Serializer serializer) {
 		this.serializer = serializer;
@@ -35,7 +35,7 @@ public class DeflateSerializer extends Serializer {
 		}
 	}
 
-	public Object create (Kryo kryo, Input input, Class type) {
+	public Object read (Kryo kryo, Input input, Class type) {
 		Inflater inflater = new Inflater(noHeaders);
 		InflaterInputStream inflaterInput = new InflaterInputStream(input, inflater);
 		return kryo.readObject(new Input(inflaterInput, 256), type, serializer);
@@ -45,8 +45,6 @@ public class DeflateSerializer extends Serializer {
 		this.noHeaders = noHeaders;
 	}
 
-	/** Default is 4.
-	 * @see Deflater#setLevel(int) */
 	public void setCompressionLevel (int compressionLevel) {
 		this.compressionLevel = compressionLevel;
 	}

@@ -15,7 +15,7 @@ import com.esotericsoftware.kryo.io.Output;
  * collection. The alternate constructor can be used to improve efficiency to match that of using an array instead of a
  * collection.
  * @author Nathan Sweet <misc@n4te.com> */
-public class CollectionSerializer extends Serializer<Collection> {
+public class CollectionSerializer implements Serializer<Collection> {
 	private final Kryo kryo;
 	private boolean elementsCanBeNull = true;
 	private Serializer serializer;
@@ -76,14 +76,18 @@ public class CollectionSerializer extends Serializer<Collection> {
 		}
 	}
 
-	public void read (Kryo kryo, Input input, Collection collection) {
+	public Collection read (Kryo kryo, Input input, Class<Collection> type) {
 		int length;
 		if (this.length != null)
 			length = this.length;
 		else
 			length = input.readInt(true);
-		if (length == 0) return;
-		if (collection instanceof ArrayList) ((ArrayList)collection).ensureCapacity(length);
+		Collection collection;
+		if ((Class)type == ArrayList.class)
+			collection = new ArrayList(length);
+		else
+			collection = (Collection)newInstance(kryo, input, type);
+		if (length == 0) return collection;
 		if (serializer != null) {
 			if (elementsCanBeNull) {
 				for (int i = 0; i < length; i++)
@@ -96,5 +100,12 @@ public class CollectionSerializer extends Serializer<Collection> {
 			for (int i = 0; i < length; i++)
 				collection.add(kryo.readClassAndObject(input));
 		}
+		return collection;
+	}
+
+	/** Instance creation can be customized by overridding this method. The default implementaion calls
+	 * {@link Kryo#newInstance(Class)}. */
+	public <T> T newInstance (Kryo kryo, Input input, Class<T> type) {
+		return kryo.newInstance(type);
 	}
 }

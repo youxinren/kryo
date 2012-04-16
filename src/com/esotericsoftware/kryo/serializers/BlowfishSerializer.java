@@ -16,7 +16,7 @@ import com.esotericsoftware.kryo.io.Output;
 
 /** Encrypts data using the blowfish cipher.
  * @author Nathan Sweet <misc@n4te.com> */
-public class BlowfishSerializer extends Serializer {
+public class BlowfishSerializer implements Serializer {
 	private final Serializer serializer;
 	static private SecretKeySpec keySpec;
 
@@ -42,7 +42,7 @@ public class BlowfishSerializer extends Serializer {
 		}
 	}
 
-	public Object create (Kryo kryo, Input input, Class type) {
+	public Object read (Kryo kryo, Input input, Class type) {
 		Cipher cipher = getCipher(Cipher.DECRYPT_MODE);
 		CipherInputStream cipherInput = new CipherInputStream(input, cipher);
 		return kryo.readObject(new Input(cipherInput, 256), type, serializer);

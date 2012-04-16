@@ -6,7 +6,6 @@ import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import com.esotericsoftware.kryo.serializers.FieldSerializer.Optional;
 
-/** @author Nathan Sweet <misc@n4te.com> */
 public class FieldSerializerTest extends KryoTestCase {
 	public void testDefaultTypes () {
 		kryo.register(DefaultTypes.class);
@@ -14,7 +13,7 @@ public class FieldSerializerTest extends KryoTestCase {
 		DefaultTypes test = new DefaultTypes();
 		test.booleanField = true;
 		test.byteField = 123;
-		test.charField = 'Z';
+		test.charField = 1234;
 		test.shortField = 12345;
 		test.intField = 123456;
 		test.longField = 123456789;
@@ -22,7 +21,7 @@ public class FieldSerializerTest extends KryoTestCase {
 		test.doubleField = 1.23456d;
 		test.BooleanField = true;
 		test.ByteField = -12;
-		test.CharacterField = 'X';
+		test.CharacterField = 123;
 		test.ShortField = -12345;
 		test.IntegerField = -123456;
 		test.LongField = -123456789l;
@@ -30,16 +29,7 @@ public class FieldSerializerTest extends KryoTestCase {
 		test.DoubleField = -0.121231d;
 		test.StringField = "stringvalue";
 		test.byteArrayField = new byte[] {2, 1, 0, -1, -2};
-		roundTrip(79, test);
-
-		kryo.register(HasStringField.class);
-		test.hasStringField = new HasStringField();
-		FieldSerializer serializer = (FieldSerializer)kryo.getSerializer(DefaultTypes.class);
-		serializer.getField("hasStringField").setCanBeNull(false);
-		roundTrip(80, test);
-		serializer.setFixedFieldTypes(true);
-		serializer.getField("hasStringField").setCanBeNull(false);
-		roundTrip(79, test);
+		roundTrip(81, test);
 	}
 
 	public void testFieldRemoval () {
@@ -49,14 +39,14 @@ public class FieldSerializerTest extends KryoTestCase {
 
 		HasStringField hasStringField = new HasStringField();
 		hasStringField.text = "moo";
-		roundTrip(5, hasStringField);
+		roundTrip(6, hasStringField);
 
 		DefaultTypes test = new DefaultTypes();
 		test.intField = 12;
 		test.StringField = "value";
 		test.CharacterField = 'X';
 		test.child = new DefaultTypes();
-		roundTrip(72, test);
+		roundTrip(73, test);
 		test.StringField = null;
 		roundTrip(67, test);
 
@@ -76,9 +66,9 @@ public class FieldSerializerTest extends KryoTestCase {
 		test.hasStringField = new HasStringField();
 		test.child = new DefaultTypes();
 		test.child.hasStringField = new HasStringField();
-		roundTrip(198, test);
+		roundTrip(199, test);
 		test.hasStringField = null;
-		roundTrip(196, test);
+		roundTrip(197, test);
 
 		test = new DefaultTypes();
 		test.booleanField = true;
@@ -101,7 +91,7 @@ public class FieldSerializerTest extends KryoTestCase {
 		test.byteArrayField = new byte[] {2, 1, 0, -1, -2};
 
 		kryo = new Kryo();
-		roundTrip(146, test);
+		roundTrip(152, test);
 
 		C c = new C();
 		c.a = new A();
@@ -111,7 +101,7 @@ public class FieldSerializerTest extends KryoTestCase {
 		c.d = new D();
 		c.d.e = new E();
 		c.d.e.f = new F();
-		roundTrip(68, c);
+		roundTrip(73, c);
 	}
 
 	public void testReferences () {
@@ -126,12 +116,12 @@ public class FieldSerializerTest extends KryoTestCase {
 		c.d.e.f.a = c.a;
 
 		kryo = new Kryo();
-		roundTrip(68, c);
+		roundTrip(74, c);
 		C c2 = (C)object2;
 		assertTrue(c2.a == c2.d.e.f.a);
 
 		// Test reset clears unregistered class names.
-		roundTrip(68, c);
+		roundTrip(74, c);
 		c2 = (C)object2;
 		assertTrue(c2.a == c2.d.e.f.a);
 
@@ -143,7 +133,7 @@ public class FieldSerializerTest extends KryoTestCase {
 		kryo.register(D.class);
 		kryo.register(E.class);
 		kryo.register(F.class);
-		roundTrip(19, c);
+		roundTrip(25, c);
 		c2 = (C)object2;
 		assertTrue(c2.a == c2.d.e.f.a);
 	}
@@ -219,7 +209,7 @@ public class FieldSerializerTest extends KryoTestCase {
 
 	public void testNoDefaultConstructor () {
 		kryo.register(SimpleNoDefaultConstructor.class, new Serializer<SimpleNoDefaultConstructor>() {
-			public SimpleNoDefaultConstructor create (Kryo kryo, Input input, Class<SimpleNoDefaultConstructor> type) {
+			public SimpleNoDefaultConstructor read (Kryo kryo, Input input, Class<SimpleNoDefaultConstructor> type) {
 				return new SimpleNoDefaultConstructor(input.readInt(true));
 			}
 
@@ -237,7 +227,7 @@ public class FieldSerializerTest extends KryoTestCase {
 				super.write(kryo, output, object);
 			}
 
-			public Object create (Kryo kryo, Input input, Class type) {
+			public Object newInstance (Kryo kryo, Input input, Class type) {
 				String name = input.readString();
 				ComplexNoDefaultConstructor object = new ComplexNoDefaultConstructor(name);
 				return object;
@@ -246,7 +236,7 @@ public class FieldSerializerTest extends KryoTestCase {
 		ComplexNoDefaultConstructor object2 = new ComplexNoDefaultConstructor("has no zero arg constructor!");
 		object2.anotherField1 = 1234;
 		object2.anotherField2 = "abcd";
-		roundTrip(37, object2);
+		roundTrip(38, object2);
 	}
 
 	public void testNonNull () {
@@ -267,21 +257,6 @@ public class FieldSerializerTest extends KryoTestCase {
 		kryo = new Kryo();
 		kryo.getContext().put("smurf", null);
 		roundTrip(73, new HasOptionalAnnotation());
-	}
-
-	public void testCyclicGrgaph () throws Exception {
-		kryo.register(DefaultTypes.class);
-		kryo.register(byte[].class);
-		kryo.setReferences(true);
-		DefaultTypes test = new DefaultTypes();
-		test.child = test;
-		roundTrip(39, test);
-	}
-
-	public void testConstructors () {
-		kryo.register(HasArgumentConstructor.class);
-		HasArgumentConstructor test = new HasArgumentConstructor("cow");
-		roundTrip(5, test);
 	}
 
 	static public class DefaultTypes {
@@ -353,7 +328,7 @@ public class FieldSerializerTest extends KryoTestCase {
 
 			if (child != other.child) {
 				if (child == null || other.child == null) return false;
-				if (child != this && !child.equals(other.child)) return false;
+				if (!child.equals(other.child)) return false;
 			}
 
 			if (byteField != other.byteField) return false;
@@ -589,32 +564,13 @@ public class FieldSerializerTest extends KryoTestCase {
 		}
 	}
 
-	static public class HasDefaultSerializerAnnotationSerializer extends Serializer {
+	static public class HasDefaultSerializerAnnotationSerializer implements Serializer {
 		public void write (Kryo kryo, Output output, Object object) {
 			output.writeLong(((HasDefaultSerializerAnnotation)object).time, true);
 		}
 
-		public Object create (Kryo kryo, Input input, Class type) {
+		public Object read (Kryo kryo, Input input, Class type) {
 			return new HasDefaultSerializerAnnotation(input.readLong(true));
-		}
-	}
-
-	static public class HasArgumentConstructor {
-		public String moo;
-
-		public HasArgumentConstructor (String moo) {
-			this.moo = moo;
-		}
-
-		public boolean equals (Object obj) {
-			if (this == obj) return true;
-			if (obj == null) return false;
-			if (getClass() != obj.getClass()) return false;
-			HasArgumentConstructor other = (HasArgumentConstructor)obj;
-			if (moo == null) {
-				if (other.moo != null) return false;
-			} else if (!moo.equals(other.moo)) return false;
-			return true;
 		}
 	}
 }

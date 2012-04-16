@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 
 import com.esotericsoftware.kryo.serializers.MapSerializer;
 
-/** @author Nathan Sweet <misc@n4te.com> */
 public class MapSerializerTest extends KryoTestCase {
 	public void testMaps () {
 		kryo.register(HashMap.class);
@@ -24,7 +23,7 @@ public class MapSerializerTest extends KryoTestCase {
 		serializer.setKeyClass(String.class);
 		serializer.setKeysCanBeNull(false);
 		serializer.setValueClass(String.class);
-		roundTrip(18, map);
+		roundTrip(20, map);
 		serializer.setValuesCanBeNull(false);
 		roundTrip(18, map);
 	}

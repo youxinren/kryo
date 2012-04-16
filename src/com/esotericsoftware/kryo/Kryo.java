@@ -13,11 +13,6 @@ import java.util.Currency;
 import java.util.Date;
 import java.util.Map;
 
-import org.objenesis.instantiator.ObjectInstantiator;
-import org.objenesis.strategy.InstantiatorStrategy;
-import org.objenesis.strategy.SerializingInstantiatorStrategy;
-import org.objenesis.strategy.StdInstantiatorStrategy;
-
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ArraySerializer;
@@ -35,51 +30,55 @@ import com.esotericsoftware.kryo.serializers.DefaultSerializers.DoubleSerializer
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.EnumSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.FloatSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.IntSerializer;
-import com.esotericsoftware.kryo.serializers.DefaultSerializers.KryoSerializableSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.LongSerializer;
+import com.esotericsoftware.kryo.serializers.DefaultSerializers.SerializableSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.ShortSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.StringBufferSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.StringBuilderSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers.StringSerializer;
 import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import com.esotericsoftware.kryo.serializers.MapSerializer;
-import com.esotericsoftware.kryo.util.IdentityObjectIntMap;
 import com.esotericsoftware.kryo.util.IntMap;
+import com.esotericsoftware.kryo.util.ObjectIntMap;
 import com.esotericsoftware.kryo.util.ObjectMap;
 
-import static com.esotericsoftware.kryo.Util.*;
 import static com.esotericsoftware.minlog.Log.*;
 
 /** Maps classes to serializers so object graphs can be serialized automatically.
  * @author Nathan Sweet <misc@n4te.com> */
 public class Kryo {
+	static private final byte NULL = 0;
+	static private final byte NOT_NULL = 1;
 	static public final byte NAME = -1;
-	static public final byte NULL = 0;
-	static public final byte NOT_NULL = 1;
+
+	static public boolean isAndroid;
+	static {
+		try {
+			Class.forName("android.os.Process");
+			isAndroid = true;
+		} catch (Exception ignored) {
+		}
+	}
 
 	private Class<? extends Serializer> defaultSerializer = FieldSerializer.class;
 	private final ArrayList<DefaultSerializerEntry> defaultSerializers = new ArrayList(32);
 	private ArraySerializer arraySerializer = new ArraySerializer();
-	private boolean reflection = true;
-	private InstantiatorStrategy strategy = new StdInstantiatorStrategy();
 
 	private int depth, nextRegisterID;
 	private final IntMap<Registration> idToRegistration = new IntMap();
 	private final ObjectMap<Class, Registration> classToRegistration = new ObjectMap();
-	private Class memoizedType;
-	private Registration memoizedRegistration;
 	private ObjectMap context, graphContext;
 
 	private boolean registrationRequired;
-	private final IdentityObjectIntMap<Class> classToNameId = new IdentityObjectIntMap();
+	private final ObjectIntMap<Class> classToNameId = new ObjectIntMap();
 	private final IntMap<Class> nameIdToClass = new IntMap();
 	private int nextNameId;
 	private ClassLoader classLoader = getClass().getClassLoader();
 
 	private boolean references = true;
 	private final InstanceId instanceId = new InstanceId(null, 0);
-	private final IdentityObjectIntMap<Class> classToNextInstanceId = new IdentityObjectIntMap();
-	private final IdentityObjectIntMap objectToInstanceId = new IdentityObjectIntMap();
+	private final ObjectIntMap<Class> classToNextInstanceId = new ObjectIntMap();
+	private final ObjectIntMap objectToInstanceId = new ObjectIntMap();
 	private final ObjectMap<InstanceId, Object> instanceIdToObject = new ObjectMap();
 
 	public Kryo () {
@@ -111,7 +110,7 @@ public class Kryo {
 		addDefaultSerializer(StringBuilder.class, StringBuilderSerializer.class);
 		addDefaultSerializer(Collection.class, CollectionSerializer.class);
 		addDefaultSerializer(Map.class, MapSerializer.class);
-		addDefaultSerializer(KryoSerializable.class, KryoSerializableSerializer.class);
+		addDefaultSerializer(Serializable.class, SerializableSerializer.class);
 
 		// Primitives and string. Primitive wrappers automatically use the same registration as primitives.
 		register(boolean.class);
@@ -238,7 +237,7 @@ public class Kryo {
 			}
 		} catch (Exception ex) {
 			throw new IllegalArgumentException("Unable to create serializer \"" + serializerClass.getName() + "\" for class: "
-				+ className(type), ex);
+				+ toString(type), ex);
 		}
 	}
 
@@ -276,11 +275,11 @@ public class Kryo {
 		int id;
 		while (true) {
 			id = nextRegisterID++;
-			// Disallow -1 and -2, which are used for NAME and NULL (stored as id + 2 == 1 and 0).
-			if (nextRegisterID == -2) nextRegisterID = 0;
+			if (nextRegisterID == -2) nextRegisterID = 0; // Disallow -1 and -2, which are used for NAME and NULL (stored as id + 2
+// == 1 and 0).
 			if (!idToRegistration.containsKey(id)) break;
 		}
-		return registerInternal(new Registration(type, serializer, id));
+		return registerInternal(type, serializer, id);
 	}
 
 	/** Registers the class using the specified ID. If the ID is already in use by the same type, the old entry is overwritten. If
@@ -290,44 +289,20 @@ public class Kryo {
 	 * @param id Must not be -1 or -2. */
 	public Registration register (Class type, Serializer serializer, int id) {
 		if (id == -1 || id == -2) throw new IllegalArgumentException("id cannot be -1 or -2");
-		return register(new Registration(type, serializer, id));
+		return registerInternal(type, serializer, id);
 	}
 
-	/** Stores the specified registration. This can be used to efficiently store per type information needed for serialization,
-	 * accessible in serializers via {@link #getRegistration(Class)}. If the ID is already in use by the same type, the old entry
-	 * is overwritten. If the ID is already in use by a different type, a {@link KryoException} is thrown. IDs are written with
-	 * {@link Output#writeInt(int, boolean)} called with true, so smaller positive integers use fewer bytes. IDs must be the same
-	 * at deserialization as they were for serialization. Registering a primitive also affects the corresponding primitive wrapper.
-	 * @param registration The id must not be -1 or -2. */
-	public Registration register (Registration registration) {
-		if (registration == null) throw new IllegalArgumentException("registration cannot be null.");
-		int id = registration.getId();
-		if (id == -1 || id == -2) throw new IllegalArgumentException("id cannot be -1 or -2");
-
-		Registration existing = getRegistration(registration.getType());
-		if (existing != null && existing.getType() != registration.getType()) {
-			throw new KryoException("An existing registration with a different type already uses ID: " + registration.getId()
-				+ "\nExisting registration: " + existing + "\nUnable to set registration: " + registration);
-		}
-
-		registerInternal(registration);
-		return registration;
-	}
-
-	private Registration registerInternal (Registration registration) {
+	private Registration registerInternal (Class type, Serializer serializer, int id) {
 		if (TRACE) {
-			if (registration.getId() == NAME) {
-				trace("kryo", "Register class name: " + className(registration.getType()) + " ("
-					+ registration.getSerializer().getClass().getName() + ")");
-			} else {
-				trace("kryo", "Register class ID " + registration.getId() + ": " + className(registration.getType()) + " ("
-					+ registration.getSerializer().getClass().getName() + ")");
-			}
+			if (id == NAME)
+				trace("kryo", "Register class name: " + toString(type) + " (" + serializer.getClass().getName() + ")");
+			else
+				trace("kryo", "Register class ID " + id + ": " + toString(type) + " (" + serializer.getClass().getName() + ")");
 		}
-		if (registration.getInstantiator() == null) registration.setInstantiator(newInstantiator(registration.getType()));
-		classToRegistration.put(registration.getType(), registration);
-		idToRegistration.put(registration.getId(), registration);
-		if (registration.getType().isPrimitive()) classToRegistration.put(getWrapperClass(registration.getType()), registration);
+		Registration registration = new Registration(type, id, serializer);
+		classToRegistration.put(type, registration);
+		idToRegistration.put(id, registration);
+		if (type.isPrimitive()) classToRegistration.put(getWrapperClass(type), registration);
 		return registration;
 	}
 
@@ -337,24 +312,21 @@ public class Kryo {
 	public Registration getRegistration (Class type) {
 		if (type == null) throw new IllegalArgumentException("type cannot be null.");
 
-		if (type == memoizedType) return memoizedRegistration;
 		Registration registration = classToRegistration.get(type);
-		if (registration == null) {
-			if (Proxy.isProxyClass(type)) {
-				// If a Proxy class, treat it like an InvocationHandler because the concrete class for a proxy is generated.
-				registration = getRegistration(InvocationHandler.class);
-			} else if (!type.isEnum() && Enum.class.isAssignableFrom(type)) {
-				// This handles an enum value that is an inner class. Eg: enum A {b{}};
-				registration = getRegistration(type.getEnclosingClass());
-			} else if (registrationRequired) {
-				throw new IllegalArgumentException("Class is not registered: " + className(type)
-					+ "\nNote: To register this class use: kryo.register(" + className(type) + ".class);");
-			} else
-				registration = registerInternal(new Registration(type, getDefaultSerializer(type), NAME));
+		if (registration != null) return registration;
+
+		// If a Proxy class, treat it like an InvocationHandler because the concrete class for a proxy is generated.
+		if (Proxy.isProxyClass(type)) return getRegistration(InvocationHandler.class);
+
+		// This handles an enum value that is an inner class. Eg: enum A {b{}};
+		if (!type.isEnum() && Enum.class.isAssignableFrom(type)) return getRegistration(type.getEnclosingClass());
+
+		if (registrationRequired) {
+			throw new IllegalArgumentException("Class is not registered: " + toString(type)
+				+ "\nNote: To register this class use: kryo.register(" + toString(type) + ".class);");
 		}
-		memoizedType = type;
-		memoizedRegistration = registration;
-		return registration;
+
+		return registerInternal(type, getDefaultSerializer(type), NAME);
 	}
 
 	/** Returns the registration for the specified ID, or null if no class is registered with that ID. */
@@ -387,18 +359,18 @@ public class Kryo {
 				output.writeByte(NAME + 2);
 				int nameId = classToNameId.get(type, -1);
 				if (nameId != -1) {
-					if (TRACE) trace("kryo", "Write class name reference " + nameId + ": " + className(type));
+					if (TRACE) trace("kryo", "Write class name reference " + nameId + ": " + toString(type));
 					output.writeInt(nameId, true);
 					return registration;
 				}
 				// Only write the class name the first time encountered in object graph.
-				if (TRACE) trace("kryo", "Write class name: " + className(type));
+				if (TRACE) trace("kryo", "Write class name: " + toString(type));
 				nameId = nextNameId++;
 				classToNameId.put(type, nameId);
 				output.write(nameId);
 				output.writeString(type.getName());
 			} else {
-				if (TRACE) trace("kryo", "Write class " + registration.getId() + ": " + className(type));
+				if (TRACE) trace("kryo", "Write class " + registration.getId() + ": " + toString(type));
 				output.writeInt(registration.getId() + 2, true);
 			}
 			return registration;
@@ -413,7 +385,7 @@ public class Kryo {
 		if (object == null) throw new IllegalArgumentException("object cannot be null.");
 		depth++;
 		try {
-			if (references && writeReferenceOrNull(output, object, false)) return;
+			if (references && writeReference(output, object)) return;
 			if (DEBUG) log("Write", object);
 			getRegistration(object.getClass()).getSerializer().write(this, output, object);
 		} finally {
@@ -428,7 +400,7 @@ public class Kryo {
 		if (serializer == null) throw new IllegalArgumentException("serializer cannot be null.");
 		depth++;
 		try {
-			if (references && writeReferenceOrNull(output, object, false)) return;
+			if (references && writeReference(output, object)) return;
 			if (DEBUG) log("Write", object);
 			serializer.write(this, output, object);
 		} finally {
@@ -442,19 +414,15 @@ public class Kryo {
 		if (output == null) throw new IllegalArgumentException("output cannot be null.");
 		depth++;
 		try {
-			Serializer serializer = getRegistration(object.getClass()).getSerializer();
-			if (references) {
-				if (writeReferenceOrNull(output, object, true)) return;
-			} else if (!serializer.getAcceptsNull()) {
-				if (object == null) {
-					if (DEBUG) log("Write", object);
-					output.writeByte(NULL);
-					return;
-				}
-				output.writeByte(Kryo.NOT_NULL);
+			if (object == null) {
+				if (DEBUG) log("Write", object);
+				output.writeByte(NULL);
+				return;
 			}
+			output.writeByte(Kryo.NOT_NULL);
+			if (references && writeReference(output, object)) return;
 			if (DEBUG) log("Write", object);
-			serializer.write(this, output, object);
+			getRegistration(object.getClass()).getSerializer().write(this, output, object);
 		} finally {
 			if (--depth == 0) reset();
 		}
@@ -467,16 +435,13 @@ public class Kryo {
 		if (serializer == null) throw new IllegalArgumentException("serializer cannot be null.");
 		depth++;
 		try {
-			if (references) {
-				if (writeReferenceOrNull(output, object, true)) return;
-			} else if (!serializer.getAcceptsNull()) {
-				if (object == null) {
-					if (DEBUG) log("Write", null);
-					output.writeByte(NULL);
-					return;
-				}
-				output.writeByte(Kryo.NOT_NULL);
+			if (object == null) {
+				if (DEBUG) log("Write", null);
+				output.writeByte(NULL);
+				return;
 			}
+			output.writeByte(Kryo.NOT_NULL);
+			if (references && writeReference(output, object)) return;
 			if (DEBUG) log("Write", object);
 			serializer.write(this, output, object);
 		} finally {
@@ -495,7 +460,7 @@ public class Kryo {
 				return;
 			}
 			Registration registration = writeClass(output, object.getClass());
-			if (references && writeReferenceOrNull(output, object, false)) return;
+			if (references && writeReference(output, object)) return;
 			if (DEBUG) log("Write", object);
 			registration.getSerializer().write(this, output, object);
 		} finally {
@@ -503,27 +468,17 @@ public class Kryo {
 		}
 	}
 
-	/** @param object May be null if mayBeNull is true. */
-	private boolean writeReferenceOrNull (Output output, Object object, boolean mayBeNull) {
-		if (object == null) {
-			if (DEBUG) log("Write", null);
-			output.writeByte(NULL);
-			return true;
-		}
+	private boolean writeReference (Output output, Object object) {
 		Class type = object.getClass();
-		if (!useReferences(type)) {
-			if (mayBeNull) output.writeByte(Kryo.NOT_NULL);
-			return false;
-		}
+		if (type == Boolean.class || type == Byte.class || type == Character.class || type == Short.class) return false;
 		int instanceId = objectToInstanceId.get(object, -1);
 		if (instanceId != -1) {
-			if (DEBUG) debug("kryo", "Write object reference " + instanceId + ": " + string(object));
+			if (DEBUG) debug("kryo", "Write object reference " + instanceId + ": " + toString(object));
 			output.writeInt(instanceId, true);
 			return true;
 		}
 		// Only write the object the first time encountered in object graph.
-		instanceId = classToNextInstanceId.getAndIncrement(type, 1, 1);
-		if (TRACE) trace("kryo", "Write initial object reference " + instanceId + ": " + string(object));
+		instanceId = classToNextInstanceId.getAndIncrement(type, 0, 1);
 		objectToInstanceId.put(object, instanceId);
 		output.writeInt(instanceId, true);
 		return false;
@@ -535,11 +490,12 @@ public class Kryo {
 		if (input == null) throw new IllegalArgumentException("input cannot be null.");
 		try {
 			int classID = input.readInt(true);
-			switch (classID) {
-			case NULL:
+			if (classID == NULL) {
 				if (DEBUG) log("Read", null);
 				return null;
-			case NAME + 2: // Offset for NAME and NULL.
+			}
+			classID -= 2;
+			if (classID == NAME) {
 				int nameId = input.readInt(true);
 				Class type = nameIdToClass.get(nameId);
 				if (type == null) {
@@ -553,13 +509,13 @@ public class Kryo {
 					nameIdToClass.put(nameId, type);
 					if (TRACE) trace("kryo", "Read class name: " + className);
 				} else {
-					if (TRACE) trace("kryo", "Read class name reference " + nameId + ": " + className(type));
+					if (TRACE) trace("kryo", "Read class name reference " + nameId + ": " + toString(type));
 				}
 				return getRegistration(type);
 			}
-			Registration registration = idToRegistration.get(classID - 2);
-			if (registration == null) throw new KryoException("Encountered unregistered class ID: " + (classID - 2));
-			if (TRACE) trace("kryo", "Read class " + (classID - 2) + ": " + className(registration.getType()));
+			Registration registration = idToRegistration.get(classID);
+			if (registration == null) throw new KryoException("Encountered unregistered class ID: " + classID);
+			if (TRACE) trace("kryo", "Read class " + classID + ": " + toString(registration.getType()));
 			return registration;
 		} finally {
 			if (depth == 0) reset();
@@ -574,15 +530,14 @@ public class Kryo {
 		try {
 			InstanceId instanceId = null;
 			if (references) {
-				instanceId = readReferenceOrNull(input, type, false);
-				if (instanceId == this.instanceId) return (T)instanceId.object;
+				instanceId = readReference(input, type);
+				if (instanceId != null && instanceId.object != null) return (T)instanceId.object;
 			}
 
-			Serializer serializer = getRegistration(type).getSerializer();
-			T object = (T)serializer.create(this, input, type);
-			if (instanceId != null) instanceIdToObject.put(instanceId, object);
-			serializer.read(this, input, object);
+			T object = (T)getRegistration(type).getSerializer().read(this, input, type);
 			if (DEBUG) log("Read", object);
+
+			if (instanceId != null) instanceIdToObject.put(instanceId, object);
 			return object;
 		} finally {
 			if (--depth == 0) reset();
@@ -598,14 +553,14 @@ public class Kryo {
 		try {
 			InstanceId instanceId = null;
 			if (references) {
-				instanceId = readReferenceOrNull(input, type, false);
-				if (instanceId == this.instanceId) return (T)instanceId.object;
+				instanceId = readReference(input, type);
+				if (instanceId != null && instanceId.object != null) return (T)instanceId.object;
 			}
 
-			T object = (T)serializer.create(this, input, type);
-			if (instanceId != null) instanceIdToObject.put(instanceId, object);
-			serializer.read(this, input, object);
+			T object = (T)serializer.read(this, input, type);
 			if (DEBUG) log("Read", object);
+
+			if (instanceId != null) instanceIdToObject.put(instanceId, object);
 			return object;
 		} finally {
 			if (--depth == 0) reset();
@@ -619,23 +574,21 @@ public class Kryo {
 		if (type == null) throw new IllegalArgumentException("type cannot be null.");
 		depth++;
 		try {
-			Serializer serializer = getRegistration(type).getSerializer();
+			if (input.readByte() == NULL) {
+				if (DEBUG) log("Read", null);
+				return null;
+			}
 
 			InstanceId instanceId = null;
 			if (references) {
-				instanceId = readReferenceOrNull(input, type, true);
-				if (instanceId == this.instanceId) return (T)instanceId.object;
-			} else if (!serializer.getAcceptsNull()) {
-				if (input.readByte() == NULL) {
-					if (DEBUG) log("Read", null);
-					return null;
-				}
+				instanceId = readReference(input, type);
+				if (instanceId != null && instanceId.object != null) return (T)instanceId.object;
 			}
 
-			T object = (T)serializer.create(this, input, type);
-			if (instanceId != null) instanceIdToObject.put(instanceId, object);
-			serializer.read(this, input, object);
+			T object = (T)getRegistration(type).getSerializer().read(this, input, type);
 			if (DEBUG) log("Read", object);
+
+			if (instanceId != null) instanceIdToObject.put(instanceId, object);
 			return object;
 		} finally {
 			if (--depth == 0) reset();
@@ -650,21 +603,21 @@ public class Kryo {
 		if (serializer == null) throw new IllegalArgumentException("serializer cannot be null.");
 		depth++;
 		try {
-			InstanceId instanceId = null;
-			if (references) {
-				instanceId = readReferenceOrNull(input, type, true);
-				if (instanceId == this.instanceId) return (T)instanceId.object;
-			} else if (!serializer.getAcceptsNull()) {
-				if (input.readByte() == NULL) {
-					if (DEBUG) log("Read", null);
-					return null;
-				}
+			if (input.readByte() == NULL) {
+				if (DEBUG) log("Read", null);
+				return null;
 			}
 
-			T object = (T)serializer.create(this, input, type);
-			if (instanceId != null) instanceIdToObject.put(instanceId, object);
-			serializer.read(this, input, object);
+			InstanceId instanceId = null;
+			if (references) {
+				instanceId = readReference(input, type);
+				if (instanceId != null && instanceId.object != null) return (T)instanceId.object;
+			}
+
+			T object = (T)serializer.read(this, input, type);
 			if (DEBUG) log("Read", object);
+
+			if (instanceId != null) instanceIdToObject.put(instanceId, object);
 			return object;
 		} finally {
 			if (--depth == 0) reset();
@@ -683,49 +636,33 @@ public class Kryo {
 
 			InstanceId instanceId = null;
 			if (references) {
-				instanceId = readReferenceOrNull(input, type, false);
-				if (instanceId == this.instanceId) return instanceId.object;
+				instanceId = readReference(input, type);
+				if (instanceId != null && instanceId.object != null) return instanceId.object;
 			}
 
-			Serializer serializer = registration.getSerializer();
-			Object object = serializer.create(this, input, type);
-			if (instanceId != null) instanceIdToObject.put(instanceId, object);
-			serializer.read(this, input, object);
+			Object object = registration.getSerializer().read(this, input, type);
 			if (DEBUG) log("Read", object);
+
+			if (instanceId != null) instanceIdToObject.put(instanceId, object);
 			return object;
 		} finally {
 			if (--depth == 0) reset();
 		}
 	}
 
-	/** @return Null if references for the type is not supported. this.instanceId if the object field should be used. A new
-	 *         InstanceId if this is the first time the object appears in the graph. */
-	private InstanceId readReferenceOrNull (Input input, Class type, boolean mayBeNull) {
+	private InstanceId readReference (Input input, Class type) {
 		if (type.isPrimitive()) type = getWrapperClass(type);
-		boolean referencesSupported = useReferences(type);
-		int id;
-		if (mayBeNull) {
-			id = input.readInt(true);
-			if (id == NULL) {
-				if (DEBUG) log("Read", null);
-				instanceId.object = null;
-				return instanceId;
-			}
-			if (!referencesSupported) return null;
-		} else {
-			if (!referencesSupported) return null;
-			id = input.readInt(true);
-		}
-		instanceId.id = id;
+		if (type == Boolean.class || type == Byte.class || type == Character.class || type == Short.class) return null;
+		InstanceId newInstanceId = null;
 		instanceId.type = type;
+		instanceId.id = input.readInt(true);
 		Object object = instanceIdToObject.get(instanceId);
 		if (object != null) {
-			if (DEBUG) debug("kryo", "Read object reference " + id + ": " + string(object));
+			if (DEBUG) debug("kryo", "Read object reference " + instanceId.id + ": " + toString(object));
 			instanceId.object = object;
 			return instanceId;
 		}
-		if (TRACE) trace("kryo", "Read initial object reference " + id + ": " + className(type));
-		return new InstanceId(type, id);
+		return new InstanceId(type, instanceId.id);
 	}
 
 	/** Called when an object graph has been completely serialized or deserialized, allowing any state only needed per object graph
@@ -772,71 +709,10 @@ public class Kryo {
 		if (TRACE) trace("kryo", "References: " + references);
 	}
 
-	/** Returns true if references will be written for the specified type when references are enabled. The default implementation
-	 * returns false for Boolean, Byte, Character, and Short.
-	 * @param type Will never be a primitive type, but may be a primitive type wrapper. */
-	protected boolean useReferences (Class type) {
-		return type != Boolean.class && type != Byte.class && type != Character.class && type != Short.class;
-	}
-
 	/** Sets the serializer to use for arrays. */
 	public void setArraySerializer (ArraySerializer arraySerializer) {
-		if (arraySerializer == null) throw new IllegalArgumentException("arraySerializer cannot be null.");
 		this.arraySerializer = arraySerializer;
 		if (TRACE) trace("kryo", "Array serializer set: " + arraySerializer.getClass().getName());
-	}
-
-	/** If true, {@link #newInstantiator(Class)} will return an instantiator that uses reflection to call the zero argument
-	 * constructor. If false or there is no zero argument constructor, the {@link #setInstantiatorStrategy(InstantiatorStrategy)
-	 * instantiator strategy} is used. Reflection is always used for {@link #useReflection(Class) some classes}. Default is true. */
-	public void setReflection (boolean reflection) {
-		this.reflection = reflection;
-	}
-
-	/** Returns true if reflection should always be used by {@link #newInstantiator(Class)} for the specified class, even if
-	 * {@link #setReflection(boolean)} is false. The default implementation returns true for class names starting with "java." or
-	 * "javax.". */
-	protected boolean useReflection (Class type) {
-		return type.getName().startsWith("java.") || type.getName().startsWith("javax.");
-	}
-
-	/** Sets the strategy used by {@link #newInstantiator(Class)} for creating objects, if {@link #setReflection(boolean)
-	 * reflection} was not used. The default uses {@link StdInstantiatorStrategy}, which attempts to create objects via without
-	 * calling any constructor. {@link SerializingInstantiatorStrategy} can be used to mimic Java's built-in serialization.
-	 * @param strategy If null, an exception will be thrown for classes that don't have a zero argument constructor or otherwise
-	 *           can't be instantiated via reflection. */
-	public void setInstantiatorStrategy (InstantiatorStrategy strategy) {
-		this.strategy = strategy;
-	}
-
-	/** Returns a new instantiator for creating new instances of the specified type.
-	 * @see #setReflection(boolean)
-	 * @see #setInstantiatorStrategy(InstantiatorStrategy)
-	 * @see Registration#getInstantiator() */
-	protected ObjectInstantiator newInstantiator (final Class type) {
-		if (reflection || useReflection(type)) {
-			try {
-				final Constructor constructor = type.getDeclaredConstructor((Class[])null);
-				return new ObjectInstantiator() {
-					public Object newInstance () {
-						try {
-							return constructor.newInstance();
-						} catch (Exception ex) {
-							throw new KryoException("Error constructing instance of class: " + className(type), ex);
-						}
-					}
-				};
-			} catch (Exception ignored) {
-			}
-			if (strategy == null) {
-				if (type.isMemberClass() && !Modifier.isStatic(type.getModifiers()))
-					throw new KryoException("Class cannot be created (non-static member class): " + className(type));
-				else
-					throw new KryoException("Class cannot be created (missing no-arg constructor): " + className(type));
-			}
-		}
-		if (strategy == null) throw new IllegalStateException("Constructors are disabled and no strategy is set.");
-		return strategy.newInstantiatorOf(type);
 	}
 
 	/** Name/value pairs that are available to all serializers. */
@@ -854,6 +730,31 @@ public class Kryo {
 
 	// --- Utility ---
 
+	/** Returns a new instance of the specified class. Generally serializers should use this method to create an new object instance
+	 * via reflection, which by default calls this method. This allows object creation to be customized globally. */
+	public <T> T newInstance (Class<T> type) {
+		if (type == null) throw new IllegalArgumentException("type cannot be null.");
+		try {
+			return type.newInstance();
+		} catch (Exception ex) {
+			try {
+				// Try a private constructor.
+				Constructor<T> constructor = type.getDeclaredConstructor();
+				constructor.setAccessible(true);
+				return constructor.newInstance();
+			} catch (SecurityException ignored) {
+			} catch (NoSuchMethodException ignored) {
+				if (type.isMemberClass() && !Modifier.isStatic(type.getModifiers()))
+					throw new KryoException("Class cannot be created (non-static member class): " + toString(type), ex);
+				else
+					throw new KryoException("Class cannot be created (missing no-arg constructor): " + toString(type), ex);
+			} catch (Exception privateConstructorException) {
+				ex = privateConstructorException;
+			}
+			throw new KryoException("Error constructing instance of class: " + toString(type), ex);
+		}
+	}
+
 	/** Returns true if the specified type is final, or if it is an array of a final type. Final types can be serialized more
 	 * efficiently because they are non-polymorphic.
 	 * <p>
@@ -866,10 +767,64 @@ public class Kryo {
 		return Modifier.isFinal(type.getModifiers());
 	}
 
+	private Class getWrapperClass (Class type) {
+		if (type == boolean.class)
+			return Boolean.class;
+		else if (type == byte.class)
+			return Byte.class;
+		else if (type == char.class)
+			return Character.class;
+		else if (type == short.class)
+			return Short.class;
+		else if (type == int.class)
+			return Integer.class;
+		else if (type == long.class)
+			return Long.class;
+		else if (type == float.class) //
+			return Float.class;
+		return Double.class;
+	}
+
+	static private void log (String message, Object object) {
+		if (object == null) {
+			if (TRACE) trace("kryo", message + ": null");
+			return;
+		}
+		Class type = object.getClass();
+		if (type.isPrimitive() || type == Boolean.class || type == Byte.class || type == Character.class || type == Short.class
+			|| type == Integer.class || type == Long.class || type == Float.class || type == Double.class || type == String.class) {
+			if (TRACE) trace("kryo", message + ": " + type.getSimpleName());
+			return;
+		}
+		debug("kryo", message + ": " + toString(object));
+	}
+
+	static private String toString (Object object) {
+		if (object == null) return "null";
+		Class type = object.getClass();
+		if (type.isArray()) return toString(type);
+		try {
+			if (type.getMethod("toString", new Class[0]).getDeclaringClass() == Object.class) return type.getName();
+		} catch (Exception ignored) {
+		}
+		return String.valueOf(object);
+	}
+
+	static private String toString (Class type) {
+		if (type.isArray()) {
+			Class elementClass = ArraySerializer.getElementClass(type);
+			StringBuilder buffer = new StringBuilder(16);
+			for (int i = 0, n = ArraySerializer.getDimensionCount(type); i < n; i++)
+				buffer.append("[]");
+			return elementClass.getName() + buffer;
+		}
+		return type.getName();
+	}
+
 	static final class InstanceId {
 		Class type;
 		int id;
-		Object object; // Set in readReferenceOrNull() for use as a return value.
+		Object object; // Only used in readReference().
 
 		public InstanceId (Class type, int id) {
 			this.type = type;

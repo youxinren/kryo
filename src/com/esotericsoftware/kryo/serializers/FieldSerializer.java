@@ -17,8 +17,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.NotNull;
 import com.esotericsoftware.kryo.Registration;
+import com.esotericsoftware.kryo.Serializable;
 import com.esotericsoftware.kryo.Serializer;
-import com.esotericsoftware.kryo.Util;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.util.ObjectMap;
@@ -27,25 +27,21 @@ import com.esotericsoftware.reflectasm.FieldAccess;
 import static com.esotericsoftware.minlog.Log.*;
 
 /** Serializes objects using direct field assignment. This is a very fast mechanism for serializing objects, often as good as
- * {@link KryoSerializable}. FieldSerializer is many times smaller and faster than Java serialization. The fields should be public
- * for optimal performance, which allows bytecode generation to be used instead of reflection.
+ * {@link Serializable}. FieldSerializer is many times smaller and faster than Java serialization. The fields should be public for
+ * optimal performance, which allows bytecode generation to be used instead of reflection.
  * <p>
  * FieldSerializer does not write header data, only the object data is stored. If the type of a field is not final (note
  * primitives are final) then an extra byte is written for that field.
  * @see Serializer
  * @see Kryo#register(Class, Serializer)
  * @author Nathan Sweet <misc@n4te.com> */
-/**
- *
- */
-public class FieldSerializer extends Serializer {
+public class FieldSerializer implements Serializer {
 	private final Class type;
 	private final Kryo kryo;
 	private CachedField[] fields;
 	Object access;
 	private boolean fieldsCanBeNull = true, setFieldsAsAccessible = true;
 	private boolean ignoreSyntheticFields = true;
-	private boolean finalFieldTypes;
 
 	public FieldSerializer (Kryo kryo, Class type) {
 		this.kryo = kryo;
@@ -106,14 +102,14 @@ public class FieldSerializer extends Serializer {
 				cachedField.canBeNull = false;
 
 			// Always use the same serializer for this field if the field's class is final.
-			if (kryo.isFinal(fieldClass) || finalFieldTypes) cachedField.fieldClass = fieldClass;
+			if (kryo.isFinal(fieldClass)) cachedField.fieldClass = fieldClass;
 
 			cachedFields.add(cachedField);
 			if (!Modifier.isFinal(modifiers) && Modifier.isPublic(modifiers) && Modifier.isPublic(fieldClass.getModifiers()))
 				asmFields.add(cachedField);
 		}
 
-		if (!Util.isAndroid && Modifier.isPublic(type.getModifiers()) && !asmFields.isEmpty()) {
+		if (!Kryo.isAndroid && Modifier.isPublic(type.getModifiers()) && !asmFields.isEmpty()) {
 			// Use ReflectASM for any public fields.
 			try {
 				access = FieldAccess.get(type);
@@ -131,15 +127,14 @@ public class FieldSerializer extends Serializer {
 			fields[i] = cachedFields.poll();
 	}
 
-	/** Sets the default value for {@link CachedField#setCanBeNull(boolean)}. Calling this method resets the {@link #getFields()
-	 * cached fields}.
-	 * @param fieldsCanBeNull False if none of the fields are null. Saves 0-1 byte per field. True if it is not known (default). */
+	/** Sets the default value for {@link CachedField#setCanBeNull(boolean)}.
+	 * @param fieldsCanBeNull False if none of the fields are null. Saves 1 byte per field. True if it is not known (default). */
 	public void setFieldsCanBeNull (boolean fieldsCanBeNull) {
 		this.fieldsCanBeNull = fieldsCanBeNull;
 		rebuildCachedFields();
 	}
 
-	/** Controls which fields are serialized. Calling this method resets the {@link #getFields() cached fields}.
+	/** Controls which fields are serialized.
 	 * @param setFieldsAsAccessible If true, all non-transient fields (inlcuding private fields) will be serialized and
 	 *           {@link Field#setAccessible(boolean) set as accessible} if necessary (default). If false, only fields in the public
 	 *           API will be serialized. */
@@ -148,19 +143,10 @@ public class FieldSerializer extends Serializer {
 		rebuildCachedFields();
 	}
 
-	/** Controls if synthetic fields are serialized. Default is true. Calling this method resets the {@link #getFields() cached
-	 * fields}.
+	/** Controls if synthetic fields are serialized. Default is true.
 	 * @param ignoreSyntheticFields If true, only non-synthetic fields will be serialized. */
 	public void setIgnoreSyntheticFields (boolean ignoreSyntheticFields) {
 		this.ignoreSyntheticFields = ignoreSyntheticFields;
-		rebuildCachedFields();
-	}
-
-	/** Sets the default value for {@link CachedField#setClass(Class)} to the field's declared type. This allows FieldSerializer to
-	 * be more efficient, since it knows field values will not be a subclass of their declared type. Default is false. Calling this
-	 * method resets the {@link #getFields() cached fields}. */
-	public void setFixedFieldTypes (boolean finalFieldTypes) {
-		this.finalFieldTypes = finalFieldTypes;
 		rebuildCachedFields();
 	}
 
@@ -207,7 +193,8 @@ public class FieldSerializer extends Serializer {
 		}
 	}
 
-	public void read (Kryo kryo, Input input, Object object) {
+	public Object read (Kryo kryo, Input input, Class type) {
+		Object object = newInstance(kryo, input, type);
 		for (int i = 0, n = fields.length; i < n; i++) {
 			CachedField cachedField = fields[i];
 			try {
@@ -243,6 +230,7 @@ public class FieldSerializer extends Serializer {
 				throw ex;
 			}
 		}
+		return object;
 	}
 
 	/** Allows specific fields to be optimized. */
@@ -269,6 +257,12 @@ public class FieldSerializer extends Serializer {
 
 	public CachedField[] getFields () {
 		return fields;
+	}
+
+	/** Instance creation can be customized by overridding this method. The default implementaion calls
+	 * {@link Kryo#newInstance(Class)}. */
+	public <T> T newInstance (Kryo kryo, Input input, Class<T> type) {
+		return kryo.newInstance(type);
 	}
 
 	/** Controls how a field will be serialized. */

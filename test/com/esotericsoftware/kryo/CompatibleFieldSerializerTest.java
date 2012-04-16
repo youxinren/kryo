@@ -5,7 +5,6 @@ import java.io.FileNotFoundException;
 
 import com.esotericsoftware.kryo.serializers.CompatibleFieldSerializer;
 
-/** @author Nathan Sweet <misc@n4te.com> */
 public class CompatibleFieldSerializerTest extends KryoTestCase {
 	public void testAddedField () throws FileNotFoundException {
 		TestClass object1 = new TestClass();
@@ -26,7 +25,7 @@ public class CompatibleFieldSerializerTest extends KryoTestCase {
 		object1.child = new TestClass();
 
 		kryo.register(TestClass.class, new CompatibleFieldSerializer(kryo, TestClass.class));
-		roundTrip(84, object1);
+		roundTrip(86, object1);
 
 		CompatibleFieldSerializer serializer = new CompatibleFieldSerializer(kryo, TestClass.class);
 		serializer.removeField("text");

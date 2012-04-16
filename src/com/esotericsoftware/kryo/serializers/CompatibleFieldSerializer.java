@@ -14,7 +14,6 @@ import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.NotNull;
 import com.esotericsoftware.kryo.Registration;
 import com.esotericsoftware.kryo.Serializer;
-import com.esotericsoftware.kryo.Util;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.InputChunked;
 import com.esotericsoftware.kryo.io.Output;
@@ -33,7 +32,7 @@ import static com.esotericsoftware.minlog.Log.*;
  * skipping the bytes for a field that no longer exists, for each field value an int is written that is the length of the value in
  * bytes.
  * @author Nathan Sweet <misc@n4te.com> */
-public class CompatibleFieldSerializer extends Serializer {
+public class CompatibleFieldSerializer implements Serializer {
 	final Kryo kryo;
 	final Class type;
 	private CachedField[] fields;
@@ -105,7 +104,7 @@ public class CompatibleFieldSerializer extends Serializer {
 			if (Modifier.isPublic(modifiers) && Modifier.isPublic(fieldClass.getModifiers())) publicFields.add(cachedField);
 		}
 
-		if (!Util.isAndroid && Modifier.isPublic(type.getModifiers()) && !publicFields.isEmpty()) {
+		if (!Kryo.isAndroid && Modifier.isPublic(type.getModifiers()) && !publicFields.isEmpty()) {
 			// Use ReflectASM for any public fields.
 			try {
 				access = FieldAccess.get(type);
@@ -149,7 +148,7 @@ public class CompatibleFieldSerializer extends Serializer {
 				output.writeString(fields[i].field.getName());
 		}
 
-		OutputChunked outputChunked = new OutputChunked(output, 1024);
+		OutputChunked outputChunked = new OutputChunked(output);
 		for (int i = 0, n = fields.length; i < n; i++) {
 			CachedField cachedField = fields[i];
 			try {
@@ -190,7 +189,7 @@ public class CompatibleFieldSerializer extends Serializer {
 		}
 	}
 
-	public void read (Kryo kryo, Input input, Object object) {
+	public Object read (Kryo kryo, Input input, Class type) {
 		ObjectMap context = kryo.getGraphContext();
 		CachedField[] fields = (CachedField[])context.get("schema");
 		if (fields == null) {
@@ -216,7 +215,8 @@ public class CompatibleFieldSerializer extends Serializer {
 			context.put("schema", fields);
 		}
 
-		InputChunked inputChunked = new InputChunked(input, 1024);
+		Object object = newInstance(kryo, input, type);
+		InputChunked inputChunked = new InputChunked(input);
 		for (int i = 0, n = fields.length; i < n; i++) {
 			CachedField cachedField = fields[i];
 			try {
@@ -263,6 +263,7 @@ public class CompatibleFieldSerializer extends Serializer {
 				throw ex;
 			}
 		}
+		return object;
 	}
 
 	/** Allows specific fields to be optimized. */
@@ -285,6 +286,12 @@ public class CompatibleFieldSerializer extends Serializer {
 			}
 		}
 		throw new IllegalArgumentException("Field \"" + fieldName + "\" not found on class: " + type.getName());
+	}
+
+	/** Instance creation can be customized by overridding this method. The default implementaion calls
+	 * {@link Kryo#newInstance(Class)}. */
+	public <T> T newInstance (Kryo kryo, Input input, Class<T> type) {
+		return kryo.newInstance(type);
 	}
 
 	/** Controls how a field will be serialized. */

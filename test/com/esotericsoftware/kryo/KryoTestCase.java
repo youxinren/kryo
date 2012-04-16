@@ -14,8 +14,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.minlog.Log;
 
-/** Convenience methods for round tripping objects.
- * @author Nathan Sweet <misc@n4te.com> */
+/** Convenience methods for round tripping objects. */
 abstract public class KryoTestCase extends TestCase {
 	protected Kryo kryo;
 	protected Output output;

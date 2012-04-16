@@ -3,7 +3,6 @@ package com.esotericsoftware.kryo;
 
 import com.esotericsoftware.kryo.serializers.BeanSerializer;
 
-/** @author Nathan Sweet <misc@n4te.com> */
 public class BeanSerializerTest extends KryoTestCase {
 	public void testBeanSerializer () {
 		kryo.register(TestClass.class, new BeanSerializer(kryo, TestClass.class));
@@ -13,9 +12,9 @@ public class BeanSerializerTest extends KryoTestCase {
 		test.setNullField("value");
 		test.setText("123");
 		test.setChild(new TestClass());
-		roundTrip(40, test);
+		roundTrip(43, test);
 		test.setNullField(null);
-		roundTrip(35, test);
+		roundTrip(37, test);
 	}
 
 	static public class TestClass {

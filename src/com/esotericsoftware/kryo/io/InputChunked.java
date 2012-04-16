@@ -8,14 +8,13 @@ import com.esotericsoftware.kryo.KryoException;
 
 import static com.esotericsoftware.minlog.Log.*;
 
-/** An InputStream that reads lengths and chunks of data from another OutputStream, allowing chunks to be skipped.
- * @author Nathan Sweet <misc@n4te.com> */
+/** An InputStream that reads lengths and chunks of data from another OutputStream, allowing chunks to be skipped. */
 public class InputChunked extends Input {
 	private int chunkSize = -1;
 
-	/** Creates an uninitialized InputChunked with a buffer size of 2048. The InputStream must be set before it can be used. */
+	/** Creates an uninitialized InputChunked with a buffer size of 1024. The InputStream must be set before it can be used. */
 	public InputChunked () {
-		super(2048);
+		super(1024);
 	}
 
 	/** Creates an uninitialized InputChunked. The InputStream must be set before it can be used. */
@@ -23,28 +22,13 @@ public class InputChunked extends Input {
 		super(bufferSize);
 	}
 
-	/** Creates an InputChunked with a buffer size of 2048. */
+	/** Creates an InputChunked with a buffer size of 1024. */
 	public InputChunked (InputStream inputStream) {
-		super(inputStream, 2048);
+		super(inputStream);
 	}
 
 	public InputChunked (InputStream inputStream, int bufferSize) {
 		super(inputStream, bufferSize);
-	}
-
-	public void setInputStream (InputStream inputStream) {
-		super.setInputStream(inputStream);
-		chunkSize = -1;
-	}
-
-	public void setBuffer (byte[] bytes, int offset, int count) {
-		super.setBuffer(bytes, offset, count);
-		chunkSize = -1;
-	}
-
-	public void rewind () {
-		super.rewind();
-		chunkSize = -1;
 	}
 
 	protected int fill (byte[] buffer, int offset, int count) throws KryoException {
@@ -66,8 +50,8 @@ public class InputChunked extends Input {
 				if (b == -1) throw new KryoException("Buffer underflow.");
 				result |= (b & 0x7F) << offset;
 				if ((b & 0x80) == 0) {
-					chunkSize = result;
 					if (TRACE) trace("kryo", "Read chunk: " + chunkSize);
+					chunkSize = result;
 					return;
 				}
 			}

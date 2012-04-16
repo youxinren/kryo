@@ -8,157 +8,130 @@ import java.util.Date;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
-import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.Serializable;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
-import static com.esotericsoftware.kryo.Kryo.*;
-
-/** Contains many serializer classes that are provided by {@link Kryo#addDefaultSerializer(Class, Class) default}.
- * @author Nathan Sweet <misc@n4te.com> */
 public class DefaultSerializers {
-	static public class BooleanSerializer extends Serializer<Boolean> {
+	static public class BooleanSerializer implements Serializer<Boolean> {
 		public void write (Kryo kryo, Output output, Boolean object) {
 			output.writeBoolean(object);
 		}
 
-		public Boolean create (Kryo kryo, Input input, Class<Boolean> type) {
+		public Boolean read (Kryo kryo, Input input, Class<Boolean> type) {
 			return input.readBoolean();
 		}
 	}
 
-	static public class ByteSerializer extends Serializer<Byte> {
+	static public class ByteSerializer implements Serializer<Byte> {
 		public void write (Kryo kryo, Output output, Byte object) {
 			output.writeByte(object);
 		}
 
-		public Byte create (Kryo kryo, Input input, Class<Byte> type) {
+		public Byte read (Kryo kryo, Input input, Class<Byte> type) {
 			return input.readByte();
 		}
 	}
 
-	static public class CharSerializer extends Serializer<Character> {
+	static public class CharSerializer implements Serializer<Character> {
 		public void write (Kryo kryo, Output output, Character object) {
 			output.writeChar(object);
 		}
 
-		public Character create (Kryo kryo, Input input, Class<Character> type) {
+		public Character read (Kryo kryo, Input input, Class<Character> type) {
 			return input.readChar();
 		}
 	}
 
-	static public class ShortSerializer extends Serializer<Short> {
+	static public class ShortSerializer implements Serializer<Short> {
 		public void write (Kryo kryo, Output output, Short object) {
 			output.writeShort(object);
 		}
 
-		public Short create (Kryo kryo, Input input, Class<Short> type) {
+		public Short read (Kryo kryo, Input input, Class<Short> type) {
 			return input.readShort();
 		}
 	}
 
-	static public class IntSerializer extends Serializer<Integer> {
+	static public class IntSerializer implements Serializer<Integer> {
 		public void write (Kryo kryo, Output output, Integer object) {
 			output.writeInt(object, false);
 		}
 
-		public Integer create (Kryo kryo, Input input, Class<Integer> type) {
+		public Integer read (Kryo kryo, Input input, Class<Integer> type) {
 			return input.readInt(false);
 		}
 	}
 
-	static public class LongSerializer extends Serializer<Long> {
+	static public class LongSerializer implements Serializer<Long> {
 		public void write (Kryo kryo, Output output, Long object) {
 			output.writeLong(object, false);
 		}
 
-		public Long create (Kryo kryo, Input input, Class<Long> type) {
+		public Long read (Kryo kryo, Input input, Class<Long> type) {
 			return input.readLong(false);
 		}
 	}
 
-	static public class FloatSerializer extends Serializer<Float> {
+	static public class FloatSerializer implements Serializer<Float> {
 		public void write (Kryo kryo, Output output, Float object) {
 			output.writeFloat(object);
 		}
 
-		public Float create (Kryo kryo, Input input, Class<Float> type) {
+		public Float read (Kryo kryo, Input input, Class<Float> type) {
 			return input.readFloat();
 		}
 	}
 
-	static public class DoubleSerializer extends Serializer<Double> {
+	static public class DoubleSerializer implements Serializer<Double> {
 		public void write (Kryo kryo, Output output, Double object) {
 			output.writeDouble(object);
 		}
 
-		public Double create (Kryo kryo, Input input, Class<Double> type) {
+		public Double read (Kryo kryo, Input input, Class<Double> type) {
 			return input.readDouble();
 		}
 	}
 
-	/** @see Output#writeString(String) */
-	static public class StringSerializer extends Serializer<String> {
-		{
-			setAcceptsNull(true);
-		}
-
+	static public class StringSerializer implements Serializer<String> {
 		public void write (Kryo kryo, Output output, String object) {
 			output.writeString(object);
 		}
 
-		public String create (Kryo kryo, Input input, Class<String> type) {
+		public String read (Kryo kryo, Input input, Class<String> type) {
 			return input.readString();
 		}
 	}
 
-	static public class ByteArraySerializer extends Serializer<byte[]> {
-		{
-			setAcceptsNull(true);
-		}
-
+	static public class ByteArraySerializer implements Serializer<byte[]> {
 		public void write (Kryo kryo, Output output, byte[] object) {
-			if (object == null) {
-				output.writeByte(NULL);
-				return;
-			}
-			output.writeInt(object.length + 1, true);
+			output.writeInt(object.length, true);
 			output.writeBytes(object);
 		}
 
-		public byte[] create (Kryo kryo, Input input, Class<byte[]> type) {
-			int length = input.readInt(true);
-			if (length == NULL) return null;
-			return input.readBytes(length - 1);
+		public byte[] read (Kryo kryo, Input input, Class<byte[]> type) {
+			return input.readBytes(input.readInt(true));
 		}
 	}
 
-	static public class BigIntegerSerializer extends Serializer<BigInteger> {
-		{
-			setAcceptsNull(true);
-		}
-
+	static public class BigIntegerSerializer implements Serializer<BigInteger> {
 		public void write (Kryo kryo, Output output, BigInteger object) {
-			if (object == null) {
-				output.writeByte(NULL);
-				return;
-			}
 			BigInteger value = (BigInteger)object;
 			byte[] bytes = value.toByteArray();
-			output.writeInt(bytes.length + 1, true);
+			output.writeInt(bytes.length, true);
 			output.writeBytes(bytes);
 		}
 
-		public BigInteger create (Kryo kryo, Input input, Class<BigInteger> type) {
+		public BigInteger read (Kryo kryo, Input input, Class<BigInteger> type) {
 			int length = input.readInt(true);
-			if (length == NULL) return null;
-			byte[] bytes = input.readBytes(length - 1);
-			return new BigInteger(bytes);
+			byte[] bytes = input.readBytes(length);
+			BigInteger value = new BigInteger(bytes);
+			return value;
 		}
 	}
 
-	static public class BigDecimalSerializer extends Serializer<BigDecimal> {
+	static public class BigDecimalSerializer implements Serializer<BigDecimal> {
 		private BigIntegerSerializer bigIntegerSerializer = new BigIntegerSerializer();
 
 		public void write (Kryo kryo, Output output, BigDecimal object) {
@@ -167,42 +140,36 @@ public class DefaultSerializers {
 			output.writeInt(value.scale(), false);
 		}
 
-		public BigDecimal create (Kryo kryo, Input input, Class<BigDecimal> type) {
-			BigInteger unscaledValue = bigIntegerSerializer.create(kryo, input, null);
+		public BigDecimal read (Kryo kryo, Input input, Class<BigDecimal> type) {
+			BigInteger unscaledValue = bigIntegerSerializer.read(kryo, input, null);
 			int scale = input.readInt(false);
-			return new BigDecimal(unscaledValue, scale);
+			BigDecimal value = new BigDecimal(unscaledValue, scale);
+			return value;
 		}
 	}
 
-	static public class ClassSerializer extends Serializer<Class> {
-		{
-			setAcceptsNull(true);
-		}
-
+	static public class ClassSerializer implements Serializer<Class> {
 		public void write (Kryo kryo, Output output, Class object) {
 			kryo.writeClass(output, object);
 		}
 
-		public Class create (Kryo kryo, Input input, Class<Class> type) {
+		public Class read (Kryo kryo, Input input, Class<Class> type) {
 			return kryo.readClass(input).getType();
 		}
 	}
 
-	static public class DateSerializer extends Serializer<Date> {
+	static public class DateSerializer implements Serializer<Date> {
 		public void write (Kryo kryo, Output output, Date object) {
 			output.writeLong(object.getTime(), true);
 		}
 
-		public Date create (Kryo kryo, Input input, Class<Date> type) {
-			return new Date(input.readLong(true));
+		public Date read (Kryo kryo, Input input, Class<Date> type) {
+			Date date = new Date(input.readLong(true));
+			return date;
 		}
 	}
 
-	static public class EnumSerializer extends Serializer<Enum> {
-		{
-			setAcceptsNull(true);
-		}
-
+	static public class EnumSerializer implements Serializer<Enum> {
 		private Object[] enumConstants;
 
 		public EnumSerializer (Kryo kryo, Class<? extends Enum> type) {
@@ -211,17 +178,11 @@ public class DefaultSerializers {
 		}
 
 		public void write (Kryo kryo, Output output, Enum object) {
-			if (object == null) {
-				output.writeByte(NULL);
-				return;
-			}
-			output.writeInt(object.ordinal() + 1, true);
+			output.writeInt(object.ordinal(), true);
 		}
 
-		public Enum create (Kryo kryo, Input input, Class<Enum> type) {
+		public Enum read (Kryo kryo, Input input, Class<Enum> type) {
 			int ordinal = input.readInt(true);
-			if (ordinal == NULL) return null;
-			ordinal--;
 			if (ordinal < 0 || ordinal > enumConstants.length - 1)
 				throw new KryoException("Invalid ordinal for enum \"" + type.getName() + "\": " + ordinal);
 			Object constant = enumConstants[ordinal];
@@ -230,63 +191,53 @@ public class DefaultSerializers {
 	}
 
 	/** @author <a href="mailto:martin.grotzke@javakaffee.de">Martin Grotzke</a> */
-	static public class CurrencySerializer extends Serializer<Currency> {
-		{
-			setAcceptsNull(true);
-		}
-
+	public class CurrencySerializer implements Serializer<Currency> {
 		public void write (Kryo kryo, Output output, Currency object) {
-			output.writeString(object == null ? null : object.getCurrencyCode());
+			output.writeString(object.getCurrencyCode());
 		}
 
-		public Currency create (Kryo kryo, Input input, Class<Currency> type) {
-			String currencyCode = input.readString();
-			if (currencyCode == null) return null;
-			return Currency.getInstance(currencyCode);
+		public Currency read (Kryo kryo, Input input, Class<Currency> type) {
+			return Currency.getInstance(input.readString());
 		}
 	}
 
 	/** @author <a href="mailto:martin.grotzke@javakaffee.de">Martin Grotzke</a> */
-	static public class StringBufferSerializer extends Serializer<StringBuffer> {
-		{
-			setAcceptsNull(true);
-		}
-
+	public class StringBufferSerializer implements Serializer<StringBuffer> {
 		public void write (Kryo kryo, Output output, StringBuffer object) {
-			output.writeString(object == null ? null : object.toString());
+			output.writeString(object.toString());
 		}
 
-		public StringBuffer create (Kryo kryo, Input input, Class<StringBuffer> type) {
-			String value = input.readString();
-			if (value == null) return null;
-			return new StringBuffer(value);
+		public StringBuffer read (Kryo kryo, Input input, Class<StringBuffer> type) {
+			return new StringBuffer(input.readString());
 		}
 	}
 
 	/** @author <a href="mailto:martin.grotzke@javakaffee.de">Martin Grotzke</a> */
-	static public class StringBuilderSerializer extends Serializer<StringBuilder> {
-		{
-			setAcceptsNull(true);
-		}
-
+	public class StringBuilderSerializer implements Serializer<StringBuilder> {
 		public void write (Kryo kryo, Output output, StringBuilder object) {
-			output.writeString(object == null ? null : object.toString());
+			output.writeString(object.toString());
 		}
 
-		public StringBuilder create (Kryo kryo, Input input, Class<StringBuilder> type) {
-			String value = input.readString();
-			if (value == null) return null;
-			return new StringBuilder(value);
+		public StringBuilder read (Kryo kryo, Input input, Class<StringBuilder> type) {
+			return new StringBuilder(input.readString());
 		}
 	}
 
-	static public class KryoSerializableSerializer extends Serializer<KryoSerializable> {
-		public void write (Kryo kryo, Output output, KryoSerializable object) {
+	public class SerializableSerializer implements Serializer<Serializable> {
+		public void write (Kryo kryo, Output output, Serializable object) {
 			object.write(kryo, output);
 		}
 
-		public void read (Kryo kryo, Input input, KryoSerializable object) {
+		public Serializable read (Kryo kryo, Input input, Class<Serializable> type) {
+			Serializable object = newInstance(kryo, input, type);
 			object.read(kryo, input);
+			return object;
+		}
+
+		/** Instance creation can be customized by overridding this method. The default implementaion calls
+		 * {@link Kryo#newInstance(Class)}. */
+		public <T> T newInstance (Kryo kryo, Input input, Class<T> type) {
+			return kryo.newInstance(type);
 		}
 	}
 }
