@@ -1,4 +1,4 @@
-If the version of Kryo's dependencies conflict with those in your project, the following Maven XML will create a "shaded" JAR. This renames the packages for all Kryo and depenency classes.
+If the version of Kryo's dependencies conflict with those in your project, the following Maven XML will create a "shaded" JAR. This renames the packages for all Kryo and dependency classes.
 
 {{{
 <dependency>
