@@ -1,5 +1,7 @@
-name: kryo
-version: 2.22
+version: 1.04
+dependencies:
+- ../reflectasm
+- ../minlog
 ---
 Build.build(project);
 Build.oneJAR(project);

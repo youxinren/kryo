@@ -1,88 +1,86 @@
 
 package com.esotericsoftware.kryo;
 
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import static com.esotericsoftware.minlog.Log.*;
 
-/** Reads and writes objects to and from bytes.
- * @author Nathan Sweet <misc@n4te.com> */
-public abstract class Serializer<T> {
-	private boolean acceptsNull, immutable;
+import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
 
-	public Serializer () {
+import com.esotericsoftware.kryo.serialize.ArraySerializer;
+
+/**
+ * Serializes objects to and from a {@link ByteBuffer}.
+ * @see Kryo#register(Class, Serializer)
+ * @author Nathan Sweet <misc@n4te.com>
+ */
+abstract public class Serializer {
+	static private final byte NULL_OBJECT = 0;
+	static private final byte NOT_NULL_OBJECT = 1;
+
+	private boolean canBeNull = true;
+
+	/**
+	 * When true, a byte will not be used to denote if the object is null. This is useful for primitives and objects that are known
+	 * to never be null. Defaults to true.
+	 */
+	public void setCanBeNull (boolean canBeNull) {
+		this.canBeNull = canBeNull;
 	}
 
-	/** @see #setAcceptsNull(boolean) */
-	public Serializer (boolean acceptsNull) {
-		this.acceptsNull = acceptsNull;
+	/**
+	 * Writes the object to the buffer.
+	 * @param object Can be null (writes a special class ID for a null object instead).
+	 */
+	public final void writeObject (ByteBuffer buffer, Object object) {
+		if (canBeNull) {
+			if (object == null) {
+				if (TRACE) trace("kryo", "Wrote object: null");
+				buffer.put(NULL_OBJECT);
+				return;
+			}
+			buffer.put(NOT_NULL_OBJECT);
+		}
+		writeObjectData(buffer, object);
 	}
 
-	/** @see #setAcceptsNull(boolean)
-	 * @see #setImmutable(boolean) */
-	public Serializer (boolean acceptsNull, boolean immutable) {
-		this.acceptsNull = acceptsNull;
-		this.immutable = immutable;
+	/**
+	 * Writes the object to the buffer.
+	 * @param object Cannot be null.
+	 */
+	abstract public void writeObjectData (ByteBuffer buffer, Object object);
+
+	/**
+	 * Reads an object from the buffer.
+	 * @return The deserialized object, or null if the object read from the buffer was a null.
+	 */
+	public final <T> T readObject (ByteBuffer buffer, Class<T> type) {
+		if (canBeNull && buffer.get() == NULL_OBJECT) {
+			if (TRACE) trace("kryo", "Read object: null");
+			return null;
+		}
+		return readObjectData(buffer, type);
 	}
 
-	/** Writes the bytes for the object to the output.
-	 * <p>
-	 * This method should not be called directly, instead this serializer can be passed to {@link Kryo} write methods that accept a
-	 * serialier.
-	 * @param object May be null if {@link #getAcceptsNull()} is true. */
-	abstract public void write (Kryo kryo, Output output, T object);
+	/**
+	 * Reads an object from the buffer.
+	 * @return The deserialized object, never null.
+	 */
+	abstract public <T> T readObjectData (ByteBuffer buffer, Class<T> type);
 
-	/** Reads bytes and returns a new object of the specified concrete type.
-	 * <p>
-	 * Before Kryo can be used to read child objects, {@link Kryo#reference(Object)} must be called with the parent object to
-	 * ensure it can be referenced by the child objects. Any serializer that uses {@link Kryo} to read a child object may need to
-	 * be reentrant.
-	 * <p>
-	 * This method should not be called directly, instead this serializer can be passed to {@link Kryo} read methods that accept a
-	 * serialier.
-	 * @return May be null if {@link #getAcceptsNull()} is true. */
-	abstract public T read (Kryo kryo, Input input, Class<T> type);
-
-	public boolean getAcceptsNull () {
-		return acceptsNull;
+	/**
+	 * Returns an instance of the specified class. The default implementation calls {@link Kryo#newInstance(Class)}.
+	 * @throws SerializationException if the class could not be constructed.
+	 */
+	public <T> T newInstance (Kryo kryo, Class<T> type) {
+		return kryo.newInstance(type);
 	}
 
-	/** If true, this serializer will handle writing and reading null values. If false, the Kryo framework handles null values and
-	 * the serializer will never receive null.
-	 * <p>
-	 * This can be set to true on a serializer that does not accept nulls if it is known that the serializer will never encounter
-	 * null. Doing this will prevent the framework from writing a byte to denote null. */
-	public void setAcceptsNull (boolean acceptsNull) {
-		this.acceptsNull = acceptsNull;
-	}
-
-	public boolean isImmutable () {
-		return immutable;
-	}
-
-	/** If true, the type this serializer will be used for is considered immutable. This causes {@link #copy(Kryo, Object)} to
-	 * return the original object. */
-	public void setImmutable (boolean immutable) {
-		this.immutable = immutable;
-	}
-
-	/** Sets the generic types of the field or method this serializer will be used for on the next call to read or write. Subsequent
-	 * calls to read and write must not use this generic type information. The default implementation does nothing. Subclasses may
-	 * use the information provided to this method for more efficient serialization, eg to use the same type for all items in a
-	 * list.
-	 * @param generics Some (but never all) elements may be null if there is no generic type information at that index. */
-	public void setGenerics (Kryo kryo, Class[] generics) {
-	}
-
-	/** Returns a copy of the specified object. The default implementation returns the original if {@link #isImmutable()} is true,
-	 * else throws {@link KryoException}. Subclasses should override this method if needed to support {@link Kryo#copy(Object)}.
-	 * <p>
-	 * Before Kryo can be used to copy child objects, {@link Kryo#reference(Object)} must be called with the copy to ensure it can
-	 * be referenced by the child objects. Any serializer that uses {@link Kryo} to copy a child object may need to be reentrant.
-	 * <p>
-	 * This method should not be called directly, instead this serializer can be passed to {@link Kryo} copy methods that accept a
-	 * serialier. */
-	public T copy (Kryo kryo, T original) {
-		if (immutable) return original;
-		throw new KryoException("Serializer does not support copy: " + getClass().getName());
+	/**
+	 * Returns true if the specified type is final, or if it is an array of a final type. Serializers call this rather than
+	 * {@link Kryo#isFinal(Class)}, allowing a subclass to customize the behavior (eg, an application may decide that all
+	 * java.util.ArrayList instances should be considered final).
+	 */
+	public boolean isFinal (Class type) {
+		return Kryo.isFinal(type);
 	}
 }
