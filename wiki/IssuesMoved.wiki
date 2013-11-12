@@ -1,0 +1,3 @@
+= The Issues Have Moved =
+
+The kryo issues have [https://github.com/EsotericSoftware/kryo/issues moved to GitHub]. Please check them out there.
