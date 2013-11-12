@@ -1,0 +1,3 @@
+= Sources moved =
+
+This code is now [https://github.com/EsotericSoftware/kryo hosted in github].
